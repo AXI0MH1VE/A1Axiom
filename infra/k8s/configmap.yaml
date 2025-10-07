@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radm-detector-config
+  labels:
+    app: radm-detector
+    component: anomaly-detection
+data:
+  # Server Configuration
+  SERVER_PORT: "8080"
+  SERVER_HOST: "0.0.0.0"
+  SERVER_READ_TIMEOUT: "10s"
+  SERVER_WRITE_TIMEOUT: "10s"
+  SERVER_IDLE_TIMEOUT: "60s"
+
+  # Anomaly Detection Configuration (A-1 Determinism, A-2 Latency compliance)
+  AD_WINDOW_SIZE: "500"
+  AD_THRESHOLD: "3.5"
+
+  # Monetization Configuration (A-4 Monetization)
+  MONETIZATION_ENABLED: "true"
+  MONETIZATION_BASE_PRICE: "0.001"
+  MONETIZATION_COMPLEXITY_MULTIPLIER: "0.1"
+  MONETIZATION_OUTPUT_FILE: "/app/data/pov_records.jsonl"
+
+  # Validation Configuration (Protocol α-IngressGuard)
+  VALIDATION_ENABLED: "true"
+  VALIDATION_MAX_VALUE: "10000000000"
+  VALIDATION_MIN_VALUE: "-10000000000"
+  VALIDATION_ALLOWED_SOURCE: "*"
+
+  # Rate Limiting Configuration (Protocol α-IngressGuard)
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_REQUESTS_PER_SECOND: "1000"
+  RATE_LIMIT_BURST_SIZE: "100"
