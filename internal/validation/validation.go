@@ -3,11 +3,15 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-playground/validator/v10"
+	"anomaly"
 )
 
 // ValidationError represents a validation failure with context.
@@ -21,6 +25,13 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("validation failed for field '%s' with value '%s': %s", e.Field, e.Value, e.Message)
 }
 
+// DataPointRequest represents the incoming data point for validation.
+type DataPointRequest struct {
+	Timestamp int64   `json:"timestamp" validate:"required,gt=0"`
+	Value     float64 `json:"value" validate:"required"`
+	SourceIP  string  `json:"source_ip" validate:"required,ip"`
+}
+
 // DataPointValidator handles validation for DataPoint structures.
 type DataPointValidator struct {
 	maxValue      float64
@@ -28,6 +39,7 @@ type DataPointValidator struct {
 	maxTimestamp  int64
 	minTimestamp  int64
 	allowedSource string
+	validator     *validator.Validate
 }
 
 // Config holds validation configuration.
@@ -41,18 +53,37 @@ type Config struct {
 
 // NewDataPointValidator creates a new validator with the given configuration.
 func NewDataPointValidator(config Config) *DataPointValidator {
+	validate := validator.New()
 	return &DataPointValidator{
 		maxValue:      config.MaxValue,
 		minValue:      config.MinValue,
 		maxTimestamp:  config.MaxTimestamp,
 		minTimestamp:  config.MinTimestamp,
 		allowedSource: config.AllowedSource,
+		validator:     validate,
 	}
 }
 
 // ValidateDataPoint performs comprehensive validation on a data point.
 func (v *DataPointValidator) ValidateDataPoint(timestamp int64, value float64, sourceIP string) error {
 	var errors []ValidationError
+
+	// Use validator/v10 for basic schema compliance
+	req := DataPointRequest{
+		Timestamp: timestamp,
+		Value:     value,
+		SourceIP:  sourceIP,
+	}
+	if err := v.validator.Struct(req); err != nil {
+		validationErrors := err.(validator.ValidationErrors)
+		for _, fieldErr := range validationErrors {
+			errors = append(errors, ValidationError{
+				Field:   strings.ToLower(fieldErr.Field()),
+				Value:   fmt.Sprintf("%v", fieldErr.Value()),
+				Message: fieldErr.Error(),
+			})
+		}
+	}
 
 	// Timestamp validation
 	if timestamp <= 0 {
@@ -173,6 +204,34 @@ func NewValidationErrors(errors []ValidationError) *ValidationErrors {
 	return &ValidationErrors{
 		Errors: errors,
 	}
+}
+
+// Validate is the global validator instance.
+var validate *validator.Validate
+
+func init() {
+	validate = validator.New()
+}
+
+// ValidateDataPoint validates a data point using validator/v10.
+// This function enforces Protocol α-IngressGuard.
+func ValidateDataPoint(dp anomaly.DataPoint) error {
+	if err := validate.Struct(dp); err != nil {
+		log.Printf("[α-IngressGuard] Validation Failure: %v", err)
+		return err
+	}
+	return nil
+}
+
+// ValidateDataPointFromAnomaly validates an anomaly.DataPoint using validator/v10.
+// This function enforces Protocol α-IngressGuard for the core anomaly.DataPoint struct.
+func ValidateDataPointFromAnomaly(dp anomaly.DataPoint, sourceIP string) error {
+	req := DataPointRequest{
+		Timestamp: dp.Timestamp,
+		Value:     dp.Value,
+		SourceIP:  sourceIP,
+	}
+	return ValidateDataPoint(req)
 }
 
 // DefaultConfig returns a default validation configuration.
