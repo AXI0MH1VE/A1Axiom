@@ -1,0 +1,33 @@
+# Production Configuration
+# Optimized for production deployment with strict security
+
+server:
+  port: "8080"
+  host: "0.0.0.0"
+  read_timeout: "5s"   # Shorter timeouts for better performance
+  write_timeout: "5s"
+  idle_timeout: "30s"
+
+detector:
+  window_size: 1000   # Larger window for better accuracy
+  threshold: 3.5      # Standard threshold for production
+
+monetization:
+  enabled: true
+  base_price: 0.001   # Production pricing
+  complexity_multiplier: 0.15
+  output_file: "/app/data/pov_records.jsonl"
+
+validation:
+  enabled: true
+  max_value: 10000000000
+  min_value: -10000000000
+  max_timestamp: 2147483647
+  min_timestamp: 1609459200
+  # Restrict to specific IP ranges in production
+  allowed_source: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
+rate_limit:
+  enabled: true
+  requests_per_second: 5000  # Higher limit for production
+  burst_size: 500

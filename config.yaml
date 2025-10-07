@@ -1,0 +1,47 @@
+# RADM - Real-Time Anomaly Detection Microservice Configuration
+# Default configuration file - override with environment variables
+
+server:
+  port: "8080"
+  host: "0.0.0.0"
+  read_timeout: "10s"
+  write_timeout: "10s"
+  idle_timeout: "60s"
+
+detector:
+  # Sliding window size for Z-Score calculation (A-1 Determinism compliance)
+  window_size: 500
+  # Z-Score threshold for anomaly detection
+  threshold: 3.5
+
+monetization:
+  # Enable Proof-of-Value (PoV) tracking (A-4 Monetization compliance)
+  enabled: true
+  # Base price per decision in USD
+  base_price: 0.001
+  # Complexity multiplier for pricing algorithm
+  complexity_multiplier: 0.1
+  # Output file for PoV records
+  output_file: "pov_records.jsonl"
+
+validation:
+  # Enable input validation (Protocol α-IngressGuard)
+  enabled: true
+  # Maximum allowed data value
+  max_value: 10000000000
+  # Minimum allowed data value
+  min_value: -10000000000
+  # Maximum timestamp (Unix timestamp)
+  max_timestamp: 2147483647
+  # Minimum timestamp (Unix timestamp)
+  min_timestamp: 1609459200  # 2021-01-01 00:00:00 UTC
+  # Allowed source IP pattern (CIDR notation or * for all)
+  allowed_source: "*"
+
+rate_limit:
+  # Enable rate limiting (Protocol α-IngressGuard)
+  enabled: true
+  # Maximum requests per second
+  requests_per_second: 1000
+  # Burst size for token bucket
+  burst_size: 100

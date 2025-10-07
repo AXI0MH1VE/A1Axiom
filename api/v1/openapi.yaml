@@ -1,0 +1,353 @@
+openapi: 3.1.0
+info:
+  title: RADM - Real-Time Anomaly Detection Microservice API
+  description: |
+    High-performance anomaly detection API built under the Axiomhive SCGO Protocol.
+
+    ## Core Compliance
+    - **A-1 Determinism**: Output verifiable via hash parity
+    - **A-2 Latency**: P95 ingestion ≤ 50ms guaranteed
+    - **A-4 Monetization**: Proof-of-Value (PoV) metrics logged
+
+    ## Protocol Compliance
+    - **Protocol α-IngressGuard**: Rate limiting and input validation
+    - **Protocol β-RedTeam**: Health checks and operational security
+    - **Protocol δ-EgressGuard**: Response validation and audit logging
+  version: 1.0.0
+  contact:
+    name: Axiomhive DevOps
+    email: devops@axiomhive.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://radm.axiomhive.com
+    description: Production server
+  - url: http://localhost:8080
+    description: Development server
+
+components:
+  schemas:
+    DataPoint:
+      type: object
+      required:
+        - timestamp
+        - value
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Unix timestamp in seconds
+          example: 1638360000
+        value:
+          type: number
+          format: float
+          description: Numeric value to analyze for anomalies
+          example: 42.5
+
+    AnomalyResponse:
+      type: object
+      properties:
+        is_anomaly:
+          type: boolean
+          description: Whether the data point is considered anomalous
+          example: true
+        z_score:
+          type: number
+          format: float
+          description: Z-score of the data point (distance from mean in standard deviations)
+          example: 3.24
+        timestamp:
+          type: integer
+          format: int64
+          description: Echo of the input timestamp
+          example: 1638360000
+        value:
+          type: number
+          format: float
+          description: Echo of the input value
+          example: 42.5
+        processing_ns:
+          type: integer
+          format: int64
+          description: Processing time in nanoseconds
+          example: 150000
+        price:
+          type: number
+          format: float
+          description: Calculated price for this decision (PoV system)
+          example: 0.001234
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code for programmatic handling
+          example: "INVALID_JSON"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid JSON in request body"
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [OK, NOT_READY]
+          example: "OK"
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+        version:
+          type: string
+          description: Service version
+          example: "1.0.0"
+
+    MetricsResponse:
+      type: object
+      properties:
+        detector_stats:
+          type: object
+          properties:
+            window_size:
+              type: integer
+              example: 500
+            threshold:
+              type: number
+              format: float
+              example: 3.5
+            count:
+              type: integer
+              example: 450
+            mean:
+              type: number
+              format: float
+              example: 42.3
+            std_dev:
+              type: number
+              format: float
+              example: 15.7
+        rate_limit_stats:
+          type: object
+          properties:
+            available_tokens:
+              type: integer
+              example: 850
+            capacity:
+              type: integer
+              example: 1000
+            refill_rate:
+              type: integer
+              example: 1000
+        monetization_stats:
+          type: object
+          properties:
+            total_decisions:
+              type: integer
+              example: 15420
+            total_value:
+              type: number
+              format: float
+              example: 15.42
+            average_latency_ns:
+              type: integer
+              example: 125000
+            anomaly_rate_pct:
+              type: number
+              format: float
+              example: 3.5
+        uptime_seconds:
+          type: number
+          format: float
+          example: 3600.5
+
+  securitySchemes:
+    RateLimit:
+      type: apiKey
+      in: header
+      name: X-RateLimit-Token
+      description: Rate limiting token (future enhancement)
+
+paths:
+  /api/v1/data/ingest:
+    post:
+      summary: Ingest data point for anomaly detection
+      description: |
+        Ingests a data point for real-time anomaly detection analysis using the Sliding Window Z-Score algorithm.
+
+        **Protocol Compliance:**
+        - Protocol α-IngressGuard: Input validation and rate limiting
+        - Protocol δ-EgressGuard: Response validation and PoV logging
+      operationId: ingestDataPoint
+      tags:
+        - Anomaly Detection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataPoint'
+            example:
+              timestamp: 1638360000
+              value: 42.5
+      responses:
+        '200':
+          description: Successful anomaly detection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnomalyResponse'
+              example:
+                is_anomaly: true
+                z_score: 3.24
+                timestamp: 1638360000
+                value: 42.5
+                processing_ns: 150000
+                price: 0.001234
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value:
+                    error: "INVALID_JSON"
+                    message: "Invalid JSON in request body"
+                missing_timestamp:
+                  value:
+                    error: "MISSING_TIMESTAMP"
+                    message: "timestamp field is required and must be a number"
+                validation_failed:
+                  value:
+                    error: "VALIDATION_FAILED"
+                    message: "value exceeds maximum threshold 10000000000"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "RATE_LIMIT_EXCEEDED"
+                message: "Rate limit exceeded. Please try again later."
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "PROCESSING_ERROR"
+                message: "Error processing data point"
+
+  /healthz:
+    get:
+      summary: Liveness probe (Protocol β-RedTeam)
+      description: |
+        Health check endpoint for Kubernetes liveness probes and basic service health verification.
+
+        **Protocol Compliance:**
+        - Protocol β-RedTeam: Operational security and health monitoring
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK"
+        '503':
+          description: Service is not healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "NOT_HEALTHY"
+
+  /readyz:
+    get:
+      summary: Readiness probe (Protocol β-RedTeam)
+      description: |
+        Readiness check endpoint for Kubernetes readiness probes and service availability verification.
+
+        **Protocol Compliance:**
+        - Protocol β-RedTeam: Operational security and readiness monitoring
+      operationId: getReadiness
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready to accept traffic
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "READY"
+        '503':
+          description: Service is not ready
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "NOT_READY"
+
+  /metrics:
+    get:
+      summary: Get service metrics and statistics
+      description: |
+        Retrieves comprehensive service metrics including detector statistics, rate limiting status, and monetization data.
+
+        **Protocol Compliance:**
+        - Protocol δ-EgressGuard: Structured metrics output
+      operationId: getMetrics
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Service metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+              example:
+                detector_stats:
+                  window_size: 500
+                  threshold: 3.5
+                  count: 450
+                  mean: 42.3
+                  std_dev: 15.7
+                rate_limit_stats:
+                  available_tokens: 850
+                  capacity: 1000
+                  refill_rate: 1000
+                monetization_stats:
+                  total_decisions: 15420
+                  total_value: 15.42
+                  average_latency_ns: 125000
+                  anomaly_rate_pct: 3.5
+                uptime_seconds: 3600.5
+
+tags:
+  - name: Anomaly Detection
+    description: Core anomaly detection functionality
+  - name: Health
+    description: Service health and readiness checks
+  - name: Monitoring
+    description: Metrics and observability endpoints
+
+externalDocs:
+  description: Complete Documentation
+  url: https://docs.axiomhive.com/radm
